@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -80,7 +81,7 @@ func (ws *WordSearch) Add(word string) {
 }
 
 func (ws *WordSearch) PlaceHorizontal(word string, row int, col int) bool {
-	if len(word)+col > ws.NRows {
+	if len(word)+col > ws.NCols {
 		return false
 	}
 	// try without placing first, and then place if successful
@@ -98,7 +99,7 @@ func (ws *WordSearch) PlaceHorizontal(word string, row int, col int) bool {
 }
 
 func (ws *WordSearch) PlaceVertical(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols {
+	if len(word)+row > ws.NRows {
 		return false
 	}
 	for _, place := range []bool{false, true} {
@@ -115,7 +116,7 @@ func (ws *WordSearch) PlaceVertical(word string, row int, col int) bool {
 }
 
 func (ws *WordSearch) PlaceDiagonalDown(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols || len(word)+col > ws.NRows {
+	if len(word)+row > ws.NRows || len(word)+col > ws.NCols {
 		return false
 	}
 	for _, place := range []bool{false, true} {
@@ -132,16 +133,16 @@ func (ws *WordSearch) PlaceDiagonalDown(word string, row int, col int) bool {
 }
 
 func (ws *WordSearch) PlaceDiagonalUp(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols || col-len(word) < 0 {
+	if row-len(word) < 0 || len(word)+col > ws.NCols {
 		return false
 	}
 	for _, place := range []bool{false, true} {
 		for i, c := range word {
-			if ws.Data[row+i][col-i] != 0 && ws.Data[row+i][col-i] != byte(c) {
+			if ws.Data[row-i][col+i] != 0 && ws.Data[row-i][col+i] != byte(c) {
 				return false
 			}
 			if place {
-				ws.Data[row+i][col-i] = byte(c)
+				ws.Data[row-i][col+i] = byte(c)
 			}
 		}
 	}
@@ -176,44 +177,42 @@ func (ws *WordSearch) FillUnused(dots bool) {
 	}
 }
 
+// We build a single array of all the rows, columns, and directions and then shuffle them
+// to visit them in random order. This is a simple way to randomize the placement of the words.
+type rcd struct {
+	Row int
+	Col int
+	Dir Direction
+}
+
 func (ws *WordSearch) Build(dirs []Direction) bool {
-	rows := make([]int, ws.NCols)
+	rcds := make([]rcd, ws.NCols*ws.NRows*len(dirs))
 	for row := 0; row < ws.NCols; row++ {
-		rows[row] = row
+		for col := 0; col < ws.NRows; col++ {
+			for _, dir := range dirs {
+				rcds = append(rcds, rcd{Row: row, Col: col, Dir: dir})
+			}
+		}
 	}
 
-	cols := make([]int, ws.NRows)
-	for col := 0; col < ws.NRows; col++ {
-		cols[col] = col
-	}
-
-	for _, p := range ws.Words {
+	for i := range ws.Words {
+		// shuffle the rcds to randomize the placement for each word
+		rand.Shuffle(len(rcds), func(i, j int) {
+			rcds[i], rcds[j] = rcds[j], rcds[i]
+		})
 		placed := false
-		// for each word visit the possibilities in random order
-		rand.Shuffle(len(rows), func(i, j int) {
-			rows[i], rows[j] = rows[j], rows[i]
-		})
-		rand.Shuffle(len(cols), func(i, j int) {
-			cols[i], cols[j] = cols[j], cols[i]
-		})
-		rand.Shuffle(len(dirs), func(i, j int) {
-			dirs[i], dirs[j] = dirs[j], dirs[i]
-		})
-	outer:
-		for _, row := range rows {
-			for _, col := range cols {
-				for _, dir := range dirs {
-					if ws.Place(p.Word, row, col, dir) {
-						p.Dir = dir
-						p.Row = row
-						p.Col = col
-						placed = true
-						break outer
-					}
-				}
+		for _, rcd := range rcds {
+			if ws.Place(ws.Words[i].Word, rcd.Row, rcd.Col, rcd.Dir) {
+				ws.Words[i].Row = rcd.Row + 1
+				ws.Words[i].Col = rcd.Col + 1
+				ws.Words[i].Dir = rcd.Dir
+				// fmt.Println("placed", ws.Words[i].Word, "at", rcd.Row, rcd.Col, rcd.Dir)
+				placed = true
+				break
 			}
 		}
 		if !placed {
+			// fmt.Println("failed to place", ws.Words[i].Word)
 			return false
 		}
 	}
@@ -255,7 +254,10 @@ func (ws *WordSearch) Print() {
 }
 
 func (ws *WordSearch) PrintSolution() {
+	slices.SortFunc(ws.Words, func(a, b *Placement) int {
+		return strings.Compare(a.Original, b.Original)
+	})
 	for _, p := range ws.Words {
-		fmt.Printf("%s: %s (%d, %d)\n", p.Original, p.Dir, p.Row, p.Col)
+		fmt.Printf("%22s: %16s (R%d, C%d)\n", p.Original, p.Dir, p.Row, p.Col)
 	}
 }

@@ -100,7 +100,6 @@ func Generate(filename string, opts *Opts) (*WordSearch, error) {
 	nrows := opts.MinRows
 	ncols := opts.MinCols
 	for ; nrows <= opts.MaxRows && ncols <= opts.MaxCols; nrows, ncols = nrows+1, ncols+1 {
-		fmt.Println("trying", nrows, " rows and ", ncols, " cols")
 		ws = NewWordSearch(data.Title, data.Description, nrows, ncols)
 		for _, word := range data.Words {
 			ws.Add(word)
@@ -108,6 +107,7 @@ func Generate(filename string, opts *Opts) (*WordSearch, error) {
 		for tries := 0; tries < opts.NumTries; tries++ {
 			ws.Shuffle()
 			if ws.Build(dirs) {
+				fmt.Println("Success with", nrows, "rows and", ncols, "cols")
 				ws.FillUnused(opts.FillDots)
 				return ws, nil
 			}
@@ -142,9 +142,9 @@ func main() {
 				AddSearchPageToPDF(ws, pdf)
 			} else {
 				ws.Print()
-				if opts.PrintSolution {
-					ws.PrintSolution()
-				}
+			}
+			if opts.PrintSolution {
+				ws.PrintSolution()
 			}
 		}
 	}
