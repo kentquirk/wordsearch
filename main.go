@@ -104,6 +104,9 @@ func Generate(filename string, opts *Opts) (*WordSearch, error) {
 		for _, word := range data.Words {
 			ws.Add(word)
 		}
+		if !ws.Validate() {
+			return nil, fmt.Errorf("validation errors")
+		}
 		for tries := 0; tries < opts.NumTries; tries++ {
 			ws.Shuffle()
 			if ws.Build(dirs) {

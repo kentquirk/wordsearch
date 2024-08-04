@@ -80,6 +80,27 @@ func (ws *WordSearch) Add(word string) {
 	ws.Words = append(ws.Words, p)
 }
 
+func (ws *WordSearch) Validate() bool {
+	errors := 0
+	for i := 0; i < len(ws.Words); i++ {
+		for j := i + 1; j < len(ws.Words); j++ {
+			if ws.Words[i].Word == ws.Words[j].Word {
+				fmt.Println("Duplicate word:", ws.Words[i].Word)
+				errors++
+			}
+			if strings.Contains(ws.Words[i].Word, ws.Words[j].Word) {
+				fmt.Printf("%s contains %s\n", ws.Words[i].Word, ws.Words[j].Word)
+				errors++
+			}
+			if strings.Contains(ws.Words[j].Word, ws.Words[i].Word) {
+				fmt.Printf("%s contains %s\n", ws.Words[j].Word, ws.Words[i].Word)
+				errors++
+			}
+		}
+	}
+	return errors == 0
+}
+
 func (ws *WordSearch) PlaceHorizontal(word string, row int, col int) bool {
 	if len(word)+col > ws.NCols {
 		return false
@@ -195,6 +216,7 @@ func (ws *WordSearch) Build(dirs []Direction) bool {
 		}
 	}
 
+	dirCounts := make(map[Direction]int)
 	for i := range ws.Words {
 		// shuffle the rcds to randomize the placement for each word
 		rand.Shuffle(len(rcds), func(i, j int) {
@@ -206,13 +228,18 @@ func (ws *WordSearch) Build(dirs []Direction) bool {
 				ws.Words[i].Row = rcd.Row + 1
 				ws.Words[i].Col = rcd.Col + 1
 				ws.Words[i].Dir = rcd.Dir
-				// fmt.Println("placed", ws.Words[i].Word, "at", rcd.Row, rcd.Col, rcd.Dir)
+				dirCounts[rcd.Dir]++
 				placed = true
 				break
 			}
 		}
 		if !placed {
-			// fmt.Println("failed to place", ws.Words[i].Word)
+			return false
+		}
+	}
+	// let's make sure that we have at least one word in each direction
+	for _, dir := range dirs {
+		if dirCounts[dir] < 1 {
 			return false
 		}
 	}
