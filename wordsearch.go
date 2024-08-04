@@ -185,13 +185,18 @@ func (ws *WordSearch) Place(word string, row int, col int, direction Direction) 
 }
 
 func (ws *WordSearch) FillUnused(dots bool) {
+	// This is a VERY approximate relative frequency of letters in English text
+	// taken from Wikipedia. We'll use this to fill in the unused cells. That
+	// way we're not just filling with random letters.
+	allLetters := "AAAAAAAABCCDDDDEEEEEEEEEEEEEFFGGHHHHHHIIIIIIIJKLLLLMMNNNNNNNOOOOOOOOPPQRRRRRRSSSSSSTTTTTTTTTTUUUVWWXYYZ"
+
 	for row := 0; row < ws.NCols; row++ {
 		for col := 0; col < ws.NRows; col++ {
 			if ws.Data[row][col] == 0 {
 				if dots {
 					ws.Data[row][col] = byte('.')
 				} else {
-					ws.Data[row][col] = byte('A' + rand.Intn(26))
+					ws.Data[row][col] = byte(allLetters[rand.Intn(len(allLetters))])
 				}
 			}
 		}
