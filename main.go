@@ -2,250 +2,14 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"regexp"
-	"strings"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
 )
 
-type Direction int
-
-const (
-	None Direction = iota
-	Vertical
-	Horizontal
-	DiagonalDown
-	DiagonalUp
-)
-
-func (d Direction) String() string {
-	switch d {
-	case None:
-		return "None"
-	case Vertical:
-		return "Vertical"
-	case Horizontal:
-		return "Horizontal"
-	case DiagonalDown:
-		return "DiagonalDown"
-	case DiagonalUp:
-		return "DiagonalUp"
-	}
-	return "Unknown"
-}
-
-type Placement struct {
-	Original string
-	Word     string
-	Dir      Direction
-	Row      int
-	Col      int
-}
-
-type WordSearch struct {
-	Title       string
-	Description string
-	Words       []*Placement
-	NRows       int
-	NCols       int
-	Data        [][]byte
-}
-
-func NewWordSearch(title, description string, nrows int, ncols int) *WordSearch {
-	ws := &WordSearch{
-		Title:       title,
-		Description: description,
-		Words:       make([]*Placement, 0),
-		NRows:       ncols,
-		NCols:       nrows,
-		Data:        make([][]byte, nrows),
-	}
-	for i := 0; i < nrows; i++ {
-		ws.Data[i] = make([]byte, ncols)
-	}
-	return ws
-}
-
-func (ws *WordSearch) Add(word string) {
-	if len(word) < 2 {
-		return
-	}
-	w := strings.ToUpper(word)
-	w = regexp.MustCompile("[^A-Z]").ReplaceAllString(w, "")
-	p := &Placement{
-		Original: word,
-		Word:     w,
-	}
-	ws.Words = append(ws.Words, p)
-}
-
-func (ws *WordSearch) PlaceHorizontal(word string, row int, col int) bool {
-	if len(word)+col > ws.NRows {
-		return false
-	}
-	// try without placing first, and then place if successful
-	for _, place := range []bool{false, true} {
-		for i, c := range word {
-			if ws.Data[row][col+i] != 0 && ws.Data[row][col+i] != byte(c) {
-				return false
-			}
-			if place {
-				ws.Data[row][col+i] = byte(c)
-			}
-		}
-	}
-	return true
-}
-
-func (ws *WordSearch) PlaceVertical(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols {
-		return false
-	}
-	for _, place := range []bool{false, true} {
-		for i, c := range word {
-			if ws.Data[row+i][col] != 0 && ws.Data[row+i][col] != byte(c) {
-				return false
-			}
-			if place {
-				ws.Data[row+i][col] = byte(c)
-			}
-		}
-	}
-	return true
-}
-
-func (ws *WordSearch) PlaceDiagonalDown(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols || len(word)+col > ws.NRows {
-		return false
-	}
-	for _, place := range []bool{false, true} {
-		for i, c := range word {
-			if ws.Data[row+i][col+i] != 0 && ws.Data[row+i][col+i] != byte(c) {
-				return false
-			}
-			if place {
-				ws.Data[row+i][col+i] = byte(c)
-			}
-		}
-	}
-	return true
-}
-
-func (ws *WordSearch) PlaceDiagonalUp(word string, row int, col int) bool {
-	if len(word)+row > ws.NCols || col-len(word) < 0 {
-		return false
-	}
-	for _, place := range []bool{false, true} {
-		for i, c := range word {
-			if ws.Data[row+i][col-i] != 0 && ws.Data[row+i][col-i] != byte(c) {
-				return false
-			}
-			if place {
-				ws.Data[row+i][col-i] = byte(c)
-			}
-		}
-	}
-	return true
-}
-
-func (ws *WordSearch) Place(word string, row int, col int, direction Direction) bool {
-	switch direction {
-	case Horizontal:
-		return ws.PlaceHorizontal(word, row, col)
-	case Vertical:
-		return ws.PlaceVertical(word, row, col)
-	case DiagonalDown:
-		return ws.PlaceDiagonalDown(word, row, col)
-	case DiagonalUp:
-		return ws.PlaceDiagonalUp(word, row, col)
-	}
-	return false
-}
-
-func (ws *WordSearch) FillUnused(dots bool) {
-	for row := 0; row < ws.NCols; row++ {
-		for col := 0; col < ws.NRows; col++ {
-			if ws.Data[row][col] == 0 {
-				if dots {
-					ws.Data[row][col] = byte('.')
-				} else {
-					ws.Data[row][col] = byte('A' + rand.Intn(26))
-				}
-			}
-		}
-	}
-}
-
-func (ws *WordSearch) Build(dirs []Direction) bool {
-	rows := make([]int, ws.NCols)
-	for row := 0; row < ws.NCols; row++ {
-		rows[row] = row
-	}
-
-	cols := make([]int, ws.NRows)
-	for col := 0; col < ws.NRows; col++ {
-		cols[col] = col
-	}
-
-	for _, p := range ws.Words {
-		placed := false
-		// for each word visit the possibilities in random order
-		rand.Shuffle(len(rows), func(i, j int) {
-			rows[i], rows[j] = rows[j], rows[i]
-		})
-		rand.Shuffle(len(cols), func(i, j int) {
-			cols[i], cols[j] = cols[j], cols[i]
-		})
-		rand.Shuffle(len(dirs), func(i, j int) {
-			dirs[i], dirs[j] = dirs[j], dirs[i]
-		})
-	outer:
-		for _, row := range rows {
-			for _, col := range cols {
-				for _, dir := range dirs {
-					if ws.Place(p.Word, row, col, dir) {
-						p.Dir = dir
-						p.Row = row
-						p.Col = col
-						placed = true
-						break outer
-					}
-				}
-			}
-		}
-		if !placed {
-			return false
-		}
-	}
-	return true
-}
-
-func (ws *WordSearch) Shuffle() {
-	rand.Shuffle(len(ws.Words), func(i, j int) {
-		ws.Words[i], ws.Words[j] = ws.Words[j], ws.Words[i]
-	})
-}
-
-func (ws *WordSearch) Print() {
-	for _, row := range ws.Data {
-		for _, c := range row {
-			fmt.Print(string(c))
-		}
-		fmt.Println()
-	}
-}
-
-func (ws *WordSearch) PrintSolution() {
-	for _, p := range ws.Words {
-		fmt.Printf("%s: %s (%d, %d)\n", p.Original, p.Dir, p.Row, p.Col)
-	}
-}
-
-func (ws *WordSearch) AddSearchPageToPDF(pdf *fpdf.Fpdf) {
+func AddSearchPageToPDF(ws *WordSearch, pdf *fpdf.Fpdf) {
 	width, height, _ := pdf.PageSize(0)
 
 	pdf.AddPage()
@@ -254,31 +18,38 @@ func (ws *WordSearch) AddSearchPageToPDF(pdf *fpdf.Fpdf) {
 
 	cellWidth = min(cellWidth, cellHeight)
 	cellHeight = cellWidth
-	ml, mt, mr, mb := pdf.GetMargins()
+	ml, _, mr, _ := pdf.GetMargins()
 
 	pdf.SetFont("Arial", "B", 24)
 	pdf.CellFormat(width-ml-mr, 10, ws.Title, "", 1, "C", false, 0, "")
 	pdf.SetFont("Arial", "", 18)
 	pdf.CellFormat(width-ml-mr, 10, ws.Description, "", 1, "C", false, 0, "")
 
-	// let's center the grid
+	// let's center the grid horizontally and keep a small gap vertically
 	gridwidth := cellWidth * float64(ws.NRows)
-	gridheight := cellHeight * float64(ws.NCols)
 
 	xindent := (width - ml - mr - gridwidth) / 2
-
-	// calculate vertical space to center grid in remaining space
-	yspace := (height - mt - mb - pdf.GetY() - gridheight) / 2
-	pdf.CellFormat(width-ml-mr, yspace, "", "", 1, "", false, 0, "")
+	pdf.CellFormat(width-ml-mr, cellHeight/2, "", "", 1, "", false, 0, "")
 
 	pdf.SetFont("Arial", "B", 24)
 	for row := 0; row < ws.NCols; row++ {
-		pdf.CellFormat(xindent, yspace, "", "", 0, "", false, 0, "")
+		pdf.CellFormat(xindent, 0, "", "", 0, "", false, 0, "")
 		for col := 0; col < ws.NRows; col++ {
 			pdf.CellFormat(cellWidth, cellHeight, string(ws.Data[row][col]), "", 0, "C", false, 0, "")
 		}
 		pdf.Ln(-1)
 	}
+
+	// now let's add the word list
+	numCols := 5
+	pdf.SetFont("Arial", "", 15)
+	for i, word := range ws.Words {
+		if i%numCols == 0 {
+			pdf.Ln(-1)
+		}
+		pdf.CellFormat((width-ml-mr)/float64(numCols), 10, word.Original, "", 0, "L", false, 0, "")
+	}
+
 }
 
 type Data struct {
@@ -288,9 +59,9 @@ type Data struct {
 }
 
 type Opts struct {
-	MinCols          int    `short:"c" long:"min-cols" description:"Minimum number of columns" default:"10"`
-	MinRows          int    `short:"r" long:"min-rows" description:"Minimum number of rows" default:"13"`
-	MaxCols          int    `short:"C" long:"max-cols" description:"Maximum number of cols" default:"22"`
+	MinCols          int    `short:"c" long:"min-cols" description:"Minimum number of columns" default:"12"`
+	MinRows          int    `short:"r" long:"min-rows" description:"Minimum number of rows" default:"12"`
+	MaxCols          int    `short:"C" long:"max-cols" description:"Maximum number of cols" default:"25"`
 	MaxRows          int    `short:"R" long:"max-rows" description:"Maximum number of rows" default:"25"`
 	NumTries         int    `short:"n" long:"num-tries" description:"Max number of tries at each level" default:"100"`
 	PrintSolution    bool   `short:"s" long:"print-solution" description:"Print the solution"`
@@ -366,7 +137,7 @@ func main() {
 			fmt.Println(err)
 		} else {
 			if pdf != nil {
-				ws.AddSearchPageToPDF(pdf)
+				AddSearchPageToPDF(ws, pdf)
 			} else {
 				ws.Print()
 				if opts.PrintSolution {
