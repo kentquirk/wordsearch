@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -223,6 +224,25 @@ func (ws *WordSearch) Shuffle() {
 	rand.Shuffle(len(ws.Words), func(i, j int) {
 		ws.Words[i], ws.Words[j] = ws.Words[j], ws.Words[i]
 	})
+}
+
+func (ws *WordSearch) Longest() int {
+	longest := 0
+	for _, p := range ws.Words {
+		if len(p.Word) > longest {
+			longest = len(p.Word)
+		}
+	}
+	return longest
+}
+
+func (ws *WordSearch) WordList() []string {
+	words := make([]string, len(ws.Words))
+	for i, p := range ws.Words {
+		words[i] = p.Original
+	}
+	sort.StringSlice(words).Sort()
+	return words
 }
 
 func (ws *WordSearch) Print() {

@@ -43,11 +43,13 @@ func AddSearchPageToPDF(ws *WordSearch, pdf *fpdf.Fpdf) {
 	// now let's add the word list
 	numCols := 5
 	pdf.SetFont("Arial", "", 15)
-	for i, word := range ws.Words {
+	words := ws.WordList()
+
+	for i, word := range words {
 		if i%numCols == 0 {
 			pdf.Ln(-1)
 		}
-		pdf.CellFormat((width-ml-mr)/float64(numCols), 10, word.Original, "", 0, "L", false, 0, "")
+		pdf.CellFormat((width-ml-mr)/float64(numCols), 10, word, "", 0, "L", false, 0, "")
 	}
 
 }
